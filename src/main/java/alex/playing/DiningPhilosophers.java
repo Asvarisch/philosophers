@@ -1,20 +1,29 @@
 package alex.playing;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class DiningPhilosophers {
-    private class Seat {
+    private class Philosopher {
         public boolean lFork = true;
         public boolean rFork = true;
     }
 
     private java.util.concurrent.locks.Lock lock = new ReentrantLock();
 
-    private final Seat[] seats = new Seat[5];
+    // create fixed thread pool
+    private static ExecutorService executor = Executors.newFixedThreadPool(5);
+
+    private final Philosopher[] philosophers = new Philosopher[5];
 
     public DiningPhilosophers() {
         for (int i = 0; i < 5; i++) {
-            seats[i] = new Seat();
+            philosophers[i] = new Philosopher();
         }
     }
 
@@ -30,7 +39,7 @@ public class DiningPhilosophers {
         while (!done) {
             this.lock.lock();
 
-            if (seats[philosopher].lFork && seats[philosopher].rFork) {
+            if (philosophers[philosopher].lFork && philosophers[philosopher].rFork) {
                 locker(philosopher, false);
 
                 this.lock.unlock();
@@ -62,13 +71,13 @@ public class DiningPhilosophers {
 
 
     private void locker(int user, boolean status) {
-        seats[user].lFork = status;
-        seats[user].rFork = status;
+        philosophers[user].lFork = status;
+        philosophers[user].rFork = status;
 
         int[] neighbors = getNeighbors(user);
 
-        seats[neighbors[0]].lFork = status;
-        seats[neighbors[1]].rFork = status;
+        philosophers[neighbors[0]].lFork = status;
+        philosophers[neighbors[1]].rFork = status;
     }
 
     private int[] getNeighbors(int id) {
@@ -79,64 +88,44 @@ public class DiningPhilosophers {
     }
 
     public static void main(String[] args) {
-        Runnable pickLeftFork = () -> System.out.println(Thread.currentThread().getName() + " pickLeftFork is running");
-        Runnable pickRightFork = () -> System.out.println(Thread.currentThread().getName() + " pickRightFork is running");
-        Runnable eat = () -> System.out.println(Thread.currentThread().getName() + " eat is running");
-        Runnable putLeftFork = () -> System.out.println(Thread.currentThread().getName() + " putLeftFork is running");
-        Runnable putRightFork = () -> System.out.println(Thread.currentThread().getName() + " putRightFork is running");
+        // create runnable task for each action
+        Runnable pickLeftFork = () -> System.out.println("Philosopher-" + (Thread.currentThread().getId() - 10) + " pickLeftFork");
+        Runnable pickRightFork = () -> System.out.println("Philosopher-" + (Thread.currentThread().getId() - 10) + " pickRightFork");
+        Runnable eat = () -> System.out.println("Philosopher-" + (Thread.currentThread().getId() - 10) + " eat");
+        Runnable putLeftFork = () -> System.out.println("Philosopher-" + (Thread.currentThread().getId() - 10) + " putLeftFork");
+        Runnable putRightFork = () -> System.out.println("Philosopher-" + (Thread.currentThread().getId() - 10) + " putRightFork");
 
-
+        // create philosophers
         DiningPhilosophers diningPhilosophers = new DiningPhilosophers();
 
-        Runnable phil1 = () -> {
-            try {
-                diningPhilosophers.wantsToEat(0, pickLeftFork, pickRightFork, eat, putLeftFork, putRightFork);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        };
+        List<Runnable> philosopherTasks = new ArrayList<>();
 
-        Runnable phil2 = () -> {
-            try {
-                diningPhilosophers.wantsToEat(1, pickLeftFork, pickRightFork, eat, putLeftFork, putRightFork);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        };
-
-        Runnable phil3 = () -> {
-            try {
-                diningPhilosophers.wantsToEat(2, pickLeftFork, pickRightFork, eat, putLeftFork, putRightFork);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        };
-
-        Runnable phil4 = () -> {
-            try {
-                diningPhilosophers.wantsToEat(3, pickLeftFork, pickRightFork, eat, putLeftFork, putRightFork);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        };
-
-        Runnable phil5 = () -> {
-            try {
-                diningPhilosophers.wantsToEat(4, pickLeftFork, pickRightFork, eat, putLeftFork, putRightFork);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        };
-
-
-        for (int i = 0; i < 1; i++) {
-            new Thread(phil1).start();
-            new Thread(phil2).start();
-            new Thread(phil3).start();
-            new Thread(phil4).start();
-            new Thread(phil5).start();
+        for (int i = 0; i < 5; i++) {
+            int finalI = i;
+            Runnable task = () -> {
+                try {
+                    diningPhilosophers.wantsToEat(finalI, pickLeftFork, pickRightFork, eat, putLeftFork, putRightFork);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            };
+            philosopherTasks.add(task);
         }
 
+        // how many times each philosopher will eat
+        int n = 2;
+
+        // run all philosopher Threads
+        startEating(n, philosopherTasks);
+    }
+
+    private static void startEating(int n, List<Runnable> philosopherTasks) {
+        for (int i = 0; i < n; i++) {
+            //philosopherTasks.forEach(ph -> new Thread(ph).start());
+            // do the same thing as new Thread, but better, since we control number of Threads created
+            philosopherTasks.forEach(ph -> executor.execute(ph));
+        }
+        executor.shutdown();
     }
 
 }
